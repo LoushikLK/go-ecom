@@ -1,4 +1,4 @@
-package routes
+package routes_v1
 
 import (
 	"ecommerce/controllers"

@@ -1,12 +1,12 @@
-package utils
+package routes
 
 import (
-	"ecommerce/routes"
+	routes_v1 "ecommerce/routes/v1"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func ApiRouteParser(app *fiber.App) error {
+func InitRoutes(app *fiber.App) error {
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		c.Status(200)
@@ -23,7 +23,7 @@ func ApiRouteParser(app *fiber.App) error {
 	})
 
 	userRoute := v1.Group("/users") //api/v1/users
-	routes.InitAuthRoutes(userRoute)
+	routes_v1.InitAuthRoutes(userRoute)
 
 	return nil
 }

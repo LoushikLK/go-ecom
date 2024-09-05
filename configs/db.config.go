@@ -34,7 +34,7 @@ func InitDatabase(env *DBConfig) {
 	dbConnection.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
 
 	log.Println("Running Migrations")
-	err = dbConnection.AutoMigrate(&models.User{}, &models.Address{})
+	err = dbConnection.AutoMigrate(&models.Account{}, &models.UserLogin{}, &models.UserOtp{})
 	if err != nil {
 		log.Fatal("Migration Failed:  \n", err.Error())
 		os.Exit(1)

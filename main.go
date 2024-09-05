@@ -3,7 +3,7 @@ package main
 import (
 	configs "ecommerce/configs"
 	app_middlewares "ecommerce/middlewares"
-	"ecommerce/utils"
+	"ecommerce/routes"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -24,7 +24,7 @@ func main() {
 	configs.InitMemeCache(envConfig.MEMECACHE_SERVER)
 
 	app_middlewares.TopLevelMiddleware(app) //setup middlewares
-	utils.ApiRouteParser(app)               //setup routes
+	routes.InitRoutes(app)                  //setup routes
 	app_middlewares.ErrorMiddleware(app)    //parse errors
 
 	log.Fatal(app.Listen(":8000"))
