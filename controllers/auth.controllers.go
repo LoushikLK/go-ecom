@@ -4,6 +4,7 @@ import (
 	"ecommerce/configs"
 	"ecommerce/helpers"
 	"ecommerce/models"
+	"log"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ type AccountRegistrationPayload struct {
 }
 type ResendVerificationOTPPayload struct {
 	Mobile string `json:"mobile" validate:"required,number,max=10,min=10"`
-	Otp    string `json:"otp" validate:"required"`
 }
 type VerifyAccountPayload struct {
 	Mobile string `json:"mobile" validate:"required,number,max=10,min=10"`
@@ -27,9 +27,10 @@ type LoginPayload struct {
 	Mobile string `json:"mobile" validate:"required,number,max=10,min=10"`
 }
 type LoginVerifyPayload struct {
-	Mobile string `json:"mobile" validate:"required,number,max=10,min=10"`
-	Otp    string `json:"otp" validate:"required"`
-	FCM    string `json:"fcm" validate:"required"`
+	Mobile   string `json:"mobile" validate:"required,number,max=10,min=10"`
+	Otp      string `json:"otp" validate:"required"`
+	FCM      string `json:"fcm" validate:"required"`
+	Platform string `json:"platform" validate:"required"`
 }
 type GenerateAccessTokenPayload struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
@@ -190,29 +191,33 @@ func VerifyAccountRegistration(c *fiber.Ctx) error {
 
 	alreadyRegistered := db.First(&user, "mobile = ?", payload.Mobile)
 
+	if alreadyRegistered.RowsAffected == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "User is not registered. Please register!", "success": false})
+	}
+
 	if alreadyRegistered.Error != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
-	if alreadyRegistered.RowsAffected == 0 {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "User is not registered. Please register!", "success": false})
-	}
-
 	if user.IsMobileVerified {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": "User is already verified. Please login!", "success": false})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "User is already verified. Please login!", "success": false})
 	}
 
 	if user.IsBlacklisted {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": "User is blacklisted. Please contact support!", "success": false})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "User is blacklisted. Please contact support!", "success": false})
 	}
 
 	if user.IsBlocked {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": "User is blocked. Please contact support!", "success": false})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "User is blocked. Please contact support!", "success": false})
 	}
 
 	otpModel := models.UserOtp{}
 
 	otpResult := db.First(&otpModel, "account_id = ?", user.ID)
+
+	if otpResult.RowsAffected == 0 {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "No OTP found", "success": false})
+	}
 
 	if otpResult.Error != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": otpResult.Error.Error(), "success": false})
@@ -230,18 +235,16 @@ func VerifyAccountRegistration(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid OTP!", "success": false})
 	}
 
-	userUpdate := models.Account{
-		IsMobileVerified: true,
-	}
+	userUpdate := models.Account{}
 
-	result := db.Model(&user).Where("account_id = ? ",
-		user.ID).Updates(userUpdate)
+	result := db.Model(&userUpdate).Where("id = ?", user.ID).Updates(&models.Account{IsMobileVerified: true})
 
 	if result.Error != nil {
+		log.Printf("Error updating user: %v", result.Error)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "User verified successfully", "data": fiber.Map{"id": user.ID}, "success": true})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User verified successfully", "data": fiber.Map{"id": user.ID}, "success": true})
 
 }
 func Login(c *fiber.Ctx) error {
@@ -275,7 +278,7 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": userExist.IsBlacklistedReason, "success": false})
 	}
 	if !userExist.IsMobileVerified {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "You are not verified! Please verify your account!", "success": false})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "You are not verified! Please verify your account!", "data": fiber.Map{"id": userExist.ID, "isMobileVerified": userExist.IsMobileVerified}, "success": false})
 	}
 
 	// Generate OTP
@@ -345,6 +348,10 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
+	if result.RowsAffected == 0 {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Invalid OTP. Please try again!", "success": false})
+	}
+
 	if userOtp.IsExpired {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "OTP has expired. Please try again!", "success": false})
 	}
@@ -352,6 +359,9 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	if time.Now().After(userOtp.ExpiredDateTime) {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "OTP has expired. Please try again!", "success": false})
 	}
+
+	userOtp.IsExpired = true
+	result.Save(&userOtp)
 
 	userLogin := models.UserLogin{}
 
@@ -364,7 +374,7 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't login user", "success": false})
 	}
 
-	userLoginUpdate := db.FirstOrCreate(&userLogin, models.UserLogin{AccountID: userExist.ID, FCM: payload.FCM})
+	userLoginUpdate := db.FirstOrCreate(&userLogin, models.UserLogin{AccountID: userExist.ID, FCM: payload.FCM, Platform: payload.Platform})
 
 	if userLoginUpdate.Error != nil {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't login user", "success": false})
@@ -376,6 +386,9 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	userLogin.RefreshToken = refreshToken
 	userLogin.IsActive = true
 	db.Save(&userLogin)
+
+	//update other login of the same platform with is_active = false
+	db.Model(&models.UserLogin{}).Where("id != ? AND account_id = ? AND platform = ? AND is_active = ?", userLogin.ID, userExist.ID, payload.Platform, true).Update("is_active", false)
 
 	accessToken, err := helpers.GenerateToken(helpers.TokenClaims{
 		UserId: userExist.ID,
@@ -467,16 +480,8 @@ func LogoutUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't logged out user", "success": false})
 	}
 
-	cookie := fiber.Cookie{
-		Name:     "refreshToken",
-		Value:    "",
-		Expires:  time.Now().Add(time.Hour * -1),
-		HTTPOnly: true,
-		Secure:   true,
-		SameSite: fiber.CookieSameSiteStrictMode,
-	}
+	db.Model(&models.UserLogin{}).Where("account_id = ?", user.ID).Update("is_active", false)
 
-	c.Cookie(&cookie)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User successfully logged out", "success": true})
 
 }
@@ -537,7 +542,6 @@ func UpdateProfile(c *fiber.Ctx) error {
 	result := db.First(&user, "id = ?", parsedUuid)
 
 	if result.Error != nil {
-		c.ClearCookie("refreshToken")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please login", "success": false})
 	}
 
