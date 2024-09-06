@@ -361,7 +361,7 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	}
 
 	userOtp.IsExpired = true
-	result.Save(&userOtp)
+	db.Save(&userOtp)
 
 	userLogin := models.UserLogin{}
 
@@ -377,6 +377,7 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	userLoginUpdate := db.FirstOrCreate(&userLogin, models.UserLogin{AccountID: userExist.ID, FCM: payload.FCM, Platform: payload.Platform})
 
 	if userLoginUpdate.Error != nil {
+		log.Printf("Error generating access token: %v", userLoginUpdate.Error)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't login user", "success": false})
 	}
 
@@ -396,6 +397,7 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
+		log.Printf("Error generating access token: %v", err)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't login user", "success": false})
 	}
 

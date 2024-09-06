@@ -14,7 +14,7 @@ type UserLogin struct {
 	RefreshToken string    `gorm:"type:varchar(50);unique" json:"refresh_token"`
 	Platform     string    `gorm:"type:varchar(30)" json:"platform"`
 	IsExpired    time.Time `gorm:"type:timestamp" json:"is_expired"`
-	IsActive     bool      `gorm:"type:bool;default:false" json:"is_active"`
+	IsActive     bool      `gorm:"type:bool;default:true" json:"is_active"`
 	CreatedAt    time.Time `gorm:"type:timestamp;default:current_timestamp" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"type:timestamp;default:current_timestamp" json:"updated_at"`
 }
