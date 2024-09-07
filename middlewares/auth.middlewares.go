@@ -23,7 +23,7 @@ func IsAuthenticated(c *fiber.Ctx) error {
 
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": err.Error(),
+			"message": strings.Split(err.Error(), "token has invalid claims: ")[1],
 			"success": false,
 		})
 	}

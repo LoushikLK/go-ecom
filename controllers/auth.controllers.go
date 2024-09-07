@@ -315,10 +315,9 @@ func Login(c *fiber.Ctx) error {
 
 	userOtp.Otp = otp
 	userOtp.ExpiredDateTime = time.Now().Add(5 * time.Minute)
+	userOtp.IsExpired = false
 
-	otpSaveResult := createOtp.Save(&userOtp)
-
-	if otpSaveResult.Error != nil {
+	if err := createOtp.Save(&userOtp).Error; err != nil {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
@@ -329,7 +328,7 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	// Return response
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "OTP successfully sent", "success": true})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "OTP successfully sent", "success": true})
 
 }
 func LoginVerifyOTP(c *fiber.Ctx) error {
@@ -348,6 +347,10 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	userExist := models.Account{}
 	result := db.First(&userExist, "mobile = ?", strings.ToLower(payload.Mobile))
 
+	if result.RowsAffected == 0 {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Account does not exist. Please register!", "success": false})
+	}
+
 	if result.Error != nil {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
@@ -365,12 +368,13 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	//find user otp and match the otp
 	userOtp := models.UserOtp{}
 	result = db.First(&userOtp, "account_id = ? AND otp = ?", userExist.ID, payload.Otp)
-	if result.Error != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
-	}
 
 	if result.RowsAffected == 0 {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Invalid OTP. Please try again!", "success": false})
+	}
+
+	if result.Error != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
 	if userOtp.IsExpired {

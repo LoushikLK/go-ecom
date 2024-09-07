@@ -4,9 +4,11 @@ import (
 	"ecommerce/configs"
 	"ecommerce/helpers"
 	"ecommerce/models"
+	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type UpdateAccountPayload struct {
@@ -26,43 +28,43 @@ type VerifyEmailPayload struct {
 
 type AddAddressPayload struct {
 	IsDefault         bool    `json:"is_default" validate:"boolean"`
-	FullName          string  `json:"full_name"`
-	PhoneNumber       string  `json:"phone_number"`
-	CountryCode       string  `json:"country_code"`
-	AddressLine1      string  `json:"address_line1"`
-	AddressLine2      string  `json:"address_line2"`
-	PostalCode        string  `json:"postal_code" validate:"required"`
-	City              string  `json:"city" validate:"required"`
-	State             string  `json:"state" validate:"required"`
-	Country           string  `json:"country"`
-	IsShippingAddress bool    `json:"is_shipping_address" validate:"boolean"`
-	IsBillingAddress  bool    `json:"is_billing_address" validate:"boolean"`
-	AddressTitle      string  `json:"address_title"`
-	Lat               float64 `json:"lat"`
-	Long              float64 `json:"long"`
+	FullName          string  `json:"full_name" validate:"omitempty,min=3,max=100"`
+	PhoneNumber       string  `json:"phone_number" validate:"omitempty,number,max=10,min=10"`
+	CountryCode       string  `json:"country_code" validate:"omitempty,number,max=3"`
+	AddressLine1      string  `json:"address_line1" validate:"omitempty,min=15,max=255"`
+	AddressLine2      string  `json:"address_line2" validate:"omitempty,min=15,max=255"`
+	PostalCode        string  `json:"postal_code" validate:"required,number,max=6,min=6"`
+	City              string  `json:"city" validate:"required,min=3,max=100"`
+	State             string  `json:"state" validate:"required,min=3,max=100"`
+	Country           string  `json:"country " validate:"omitempty,min=3,max=100"`
+	IsShippingAddress bool    `json:"is_shipping_address" validate:"omitempty,boolean"`
+	IsBillingAddress  bool    `json:"is_billing_address" validate:"omitempty,boolean"`
+	AddressTitle      string  `json:"address_title" validate:"omitempty,min=3,max=100"`
+	Lat               float64 `json:"lat" validate:"omitempty,number"`
+	Long              float64 `json:"long" validate:"omitempty,number"`
 }
 type UpdateAddressPayload struct {
-	IsDefault         bool    `json:"is_default" validate:"boolean"`
-	FullName          string  `json:"full_name"`
-	PhoneNumber       string  `json:"phone_number"`
-	CountryCode       string  `json:"country_code"`
-	AddressLine1      string  `json:"address_line1"`
-	AddressLine2      string  `json:"address_line2"`
-	PostalCode        string  `json:"postal_code"`
-	City              string  `json:"city"`
-	State             string  `json:"state"`
-	Country           string  `json:"country"`
-	IsShippingAddress bool    `json:"is_shipping_address" validate:"boolean"`
-	IsBillingAddress  bool    `json:"is_billing_address" validate:"boolean"`
-	AddressTitle      string  `json:"address_title"`
-	Lat               float64 `json:"lat"`
-	Long              float64 `json:"long"`
+	IsDefault         bool    `json:"is_default" validate:"omitempty,boolean"`
+	FullName          string  `json:"full_name" validate:"omitempty,min=3,max=100"`
+	PhoneNumber       string  `json:"phone_number" validate:"omitempty,number,max=10,min=10"`
+	CountryCode       string  `json:"country_code" validate:"omitempty,number,max=3"`
+	AddressLine1      string  `json:"address_line1" validate:"omitempty,min=15,max=255"`
+	AddressLine2      string  `json:"address_line2" validate:"omitempty,min=15,max=255"`
+	PostalCode        string  `json:"postal_code" validate:"omitempty,number,max=6,min=6"`
+	City              string  `json:"city" validate:"omitempty,min=3,max=100"`
+	State             string  `json:"state" validate:"omitempty,min=3,max=100"`
+	Country           string  `json:"country" validate:"omitempty,min=3,max=100"`
+	IsShippingAddress bool    `json:"is_shipping_address" validate:"omitempty,boolean"`
+	IsBillingAddress  bool    `json:"is_billing_address" validate:"omitempty,boolean"`
+	AddressTitle      string  `json:"address_title" validate:"omitempty,min=3,max=100"`
+	Lat               float64 `json:"lat" validate:"omitempty,number"`
+	Long              float64 `json:"long" validate:"omitempty,number"`
 }
 
 type GetAddressQuery struct {
-	Limit int    `json:"limit" validate:"number,min=1,max=100"`
-	Page  int    `json:"page" validate:"number"`
-	Sort  string `json:"sort"`
+	Limit int    `json:"limit" validate:"omitempty,number,min=1,max=100"`
+	Page  int    `json:"page" validate:"omitempty,number"`
+	Sort  string `json:"sort" validate:"omitempty,oneof=asc desc"`
 }
 
 func GetProfile(c *fiber.Ctx) error {
@@ -296,12 +298,12 @@ func AddAddress(c *fiber.Ctx) error {
 	user := models.Account{}
 	result := db.First(&user, "id = ?", userId)
 
-	if result.Error != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
-	}
-
 	if result.RowsAffected == 0 {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Account does not exist. Please register!", "success": false})
+	}
+
+	if result.Error != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
 	}
 
 	userAddress := models.Address{
@@ -369,7 +371,8 @@ func AddAddress(c *fiber.Ctx) error {
 	if payload.IsDefault {
 		userAddress.IsDefault = true
 		result := transaction.Model(&userAddress).Unscoped().Where("account_id = ?", user.ID).Update("is_default", false)
-		if result.Error != nil {
+
+		if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
 			transaction.Rollback()
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Adding address failed. Please try again!", "success": false})
 		}
@@ -487,7 +490,7 @@ func UpdateAddress(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := transaction.Create(&address).Error; err != nil {
+	if err := transaction.Updates(&address).Error; err != nil {
 		transaction.Rollback()
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Update address failed. Please try again!", "success": false})
 	}
@@ -531,7 +534,7 @@ func DeleteAddress(c *fiber.Ctx) error {
 }
 func GetAllAddresses(c *fiber.Ctx) error {
 
-	var payload *GetAddressQuery
+	var payload GetAddressQuery
 
 	if err := c.QueryParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error(), "success": false})
@@ -544,7 +547,7 @@ func GetAllAddresses(c *fiber.Ctx) error {
 	userId := c.Locals("userId")
 
 	db := configs.DB
-	addresses := models.Address{}
+	var addresses []models.Address
 
 	defaultQuery := db.Model(&addresses).Where("account_id = ? AND is_deleted = false", userId)
 
@@ -566,7 +569,9 @@ func GetAllAddresses(c *fiber.Ctx) error {
 		Page = 1
 	}
 
-	if payload.Sort == "" {
+	if payload.Sort == "asc" {
+		Sort = "created_at asc"
+	} else {
 		Sort = "created_at desc"
 	}
 
@@ -582,11 +587,14 @@ func GetAllAddresses(c *fiber.Ctx) error {
 		defaultQuery = defaultQuery.Order(Sort)
 	}
 
-	result := defaultQuery.Find(&addresses)
+	selectQuery := []string{"id", "is_default", "full_name", "phone_number", "country_code", "address_line1", "address_line2", "city", "state", "country", "postal_code", "is_shipping_address", "is_billing_address", "address_title", "lat", "long", "created_at", "updated_at"}
+
+	result := defaultQuery.Select(selectQuery).Find(&addresses)
 
 	if result.Error != nil {
+		log.Println(result.Error)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened while fetching address", "success": false})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Address fetched successfully", "data": addresses, "success": true})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Address fetched successfully", "data": addresses, "count": len(addresses), "total": result.RowsAffected, "page": payload.Page, "limit": payload.Limit, "success": true})
 }

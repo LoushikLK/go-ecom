@@ -6,12 +6,12 @@ import (
 
 type UserLogin struct {
 	ID           int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	AccountID    string    `gorm:"type:uuid;not null" json:"account_id"`
+	AccountID    string    `gorm:"type:uuid;not null uniqueIndex:idx_unique_device" json:"account_id"`
 	Account      Account   `gorm:"foreignKey:AccountID;references:ID;constraint:OnUpdate:NO ACTION,OnDelete:CASCADE" json:"account"`
-	FCM          string    `gorm:"type:varchar(50);unique" json:"fcm"`
+	FCM          string    `gorm:"type:varchar(50);uniqueIndex:idx_unique_device" json:"fcm"`
 	DeviceName   string    `gorm:"type:varchar(30)" json:"device_name"`
 	Lang         string    `gorm:"type:varchar(10);default:'en'" json:"lang"`
-	RefreshToken string    `gorm:"type:varchar(50);unique" json:"refresh_token"`
+	RefreshToken string    `gorm:"type:varchar(500);uniqueIndex:idx_unique_device" json:"refresh_token"`
 	Platform     string    `gorm:"type:varchar(30)" json:"platform"`
 	IsExpired    time.Time `gorm:"type:timestamp" json:"is_expired"`
 	IsActive     bool      `gorm:"type:bool;default:true" json:"is_active"`
