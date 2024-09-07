@@ -22,8 +22,10 @@ func InitRoutes(app *fiber.App) error {
 		return c.Next()
 	})
 
-	userRoute := v1.Group("/users") //api/v1/users
-	routes_v1.InitAuthRoutes(userRoute)
+	userRoute := v1.Group("/user") //api/v1/user
+	routes_v1.InitAuthRoutes(userRoute.Group("/auth"))
+	routes_v1.InitProfileRoutes(userRoute.Group("/profile"))
+	routes_v1.InitAddressRoutes(userRoute.Group("/address"))
 
 	return nil
 }

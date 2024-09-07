@@ -15,6 +15,4 @@ func InitAuthRoutes(router fiber.Router) {
 	router.Post("/login-verify", controllers.LoginVerifyOTP)
 	router.Get("/generate-token", controllers.GenerateToken)
 	router.Put("/logout", middlewares.IsAuthenticated, controllers.LogoutUser)
-	router.Get("/profile", middlewares.IsAuthenticated, controllers.GetProfile)
-	router.Put("/profile", middlewares.IsAuthenticated, controllers.UpdateProfile)
 }

@@ -28,7 +28,7 @@ func IsAuthenticated(c *fiber.Ctx) error {
 		})
 	}
 
-	if validToken.UserId == "" || validToken.Role == "" {
+	if validToken.UserId == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"message": "Invalid token",
 			"success": false,
@@ -36,7 +36,8 @@ func IsAuthenticated(c *fiber.Ctx) error {
 	}
 
 	c.Locals("userId", validToken.UserId)
-	c.Locals("role", validToken.Role)
+	c.Locals("email", validToken.Email)
+	c.Locals("mobile", validToken.Mobile)
 
 	return c.Next()
 

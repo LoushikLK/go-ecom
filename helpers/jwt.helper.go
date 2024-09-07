@@ -10,7 +10,8 @@ import (
 
 type TokenClaims struct {
 	UserId string `json:"userId"`
-	Role   string `json:"role"`
+	Email  string `json:"email"`
+	Mobile string `json:"mobile"`
 	Exp    int64  `json:"exp"`
 }
 
@@ -22,7 +23,8 @@ func GenerateToken(claims TokenClaims) (string, error) {
 
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": claims.UserId,
-		"role":   claims.Role,
+		"mobile": claims.Mobile,
+		"email":  claims.Email,
 		"exp":    claims.Exp,
 	}).SignedString(secret)
 
@@ -54,7 +56,8 @@ func ParseToken(jwtToken string) (*TokenClaims, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		return &TokenClaims{
 			UserId: claims["userId"].(string),
-			Role:   claims["role"].(string),
+			Email:  claims["email"].(string),
+			Mobile: claims["mobile"].(string),
 			Exp:    int64(claims["exp"].(float64)),
 		}, nil
 	}
