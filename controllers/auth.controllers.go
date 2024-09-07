@@ -39,21 +39,6 @@ type GenerateAccessTokenPayload struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
-type UpdateAccountPayload struct {
-	Name  string  `json:"name"`
-	Lang  string  `json:"lang"`
-	Photo string  `json:"photo"`
-	Lat   float64 `json:"lat"`
-	Long  float64 `json:"long"`
-}
-
-type UpdateEmailPayload struct {
-	Email string `json:"email" validate:"required,email"`
-}
-type VerifyEmailPayload struct {
-	Token string `json:"token" validate:"required"`
-}
-
 func Register(c *fiber.Ctx) error {
 
 	var payload *AccountRegistrationPayload
@@ -132,7 +117,6 @@ func Register(c *fiber.Ctx) error {
 
 	// Return response
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "User successfully registered", "data": fiber.Map{"id": newUser.ID}, "success": true})
-
 }
 func ResendVerificationOtp(c *fiber.Ctx) error {
 
@@ -283,7 +267,6 @@ func VerifyAccountRegistration(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User verified successfully", "data": fiber.Map{"id": user.ID}, "success": true})
-
 }
 func Login(c *fiber.Ctx) error {
 
@@ -512,217 +495,5 @@ func LogoutUser(c *fiber.Ctx) error {
 	db.Model(&models.UserLogin{}).Where("account_id = ?", user.ID).Update("is_active", false)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User successfully logged out", "success": true})
-
-}
-func GetProfile(c *fiber.Ctx) error {
-
-	userId := c.Locals("userId")
-
-	db := configs.DB
-	user := models.Account{}
-	result := db.Select("id", "name", "email", "is_blocked", "mobile", "is_blacklisted", "lang", "country_code", "is_mobile_verified", "is_email_verified", "profile_image").First(&user, "id = ?", userId)
-
-	if result.Error != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please login", "success": false})
-	}
-
-	if user.IsBlocked {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Account blocked! Please contact support", "success": false})
-	}
-
-	if user.IsBlacklisted {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Account blacklisted! Please contact support", "success": false})
-	}
-
-	if !user.IsMobileVerified {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unverified account please verify", "success": false})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User profile fetched successfully", "data": fiber.Map{
-		"name":               user.Name,
-		"id":                 user.ID,
-		"email":              user.Email,
-		"mobile":             user.Mobile,
-		"is_blocked":         user.IsBlocked,
-		"is_blacklisted":     user.IsBlacklisted,
-		"is_mobile_verified": user.IsMobileVerified,
-		"is_email_verified":  user.IsEmailVerified,
-		"lang":               user.Lang,
-		"country_code":       user.CountryCode,
-		"profile_image":      user.ProfileImage,
-	}, "success": true})
-
-}
-func UpdateProfile(c *fiber.Ctx) error {
-
-	var payload *UpdateAccountPayload
-
-	if err := c.BodyParser(&payload); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error(), "success": false})
-	}
-
-	if errors := helpers.ValidateStruct(payload); errors != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"errors": errors, "success": false})
-
-	}
-
-	userId := c.Locals("userId")
-
-	db := configs.DB
-	user := models.Account{}
-	result := db.First(&user, "id = ?", userId)
-
-	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Something went wrong", "success": false})
-	}
-
-	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized access. Please login", "success": false})
-	}
-
-	userUpdate := models.Account{}
-
-	if payload.Name != "" {
-		userUpdate.Name = payload.Name
-	}
-	if payload.Photo != "" {
-		userUpdate.ProfileImage = payload.Photo
-	}
-
-	if payload.Lang != "" {
-		userUpdate.Lang = payload.Lang
-	}
-
-	if payload.Lat != 0 {
-		userUpdate.Lat = payload.Lat
-	}
-
-	if payload.Long != 0 {
-		userUpdate.Long = payload.Long
-	}
-
-	if err := db.Model(&user).Updates(&userUpdate).Error; err != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Couldn't update user profile", "success": false})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User profile updated successfully", "success": true})
-
-}
-
-func UpdateEmail(c *fiber.Ctx) error {
-
-	var payload *UpdateEmailPayload
-
-	if err := c.BodyParser(&payload); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error(), "success": false})
-	}
-
-	if errors := helpers.ValidateStruct(payload); errors != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"errors": errors, "success": false})
-	}
-
-	userId := c.Locals("userId")
-
-	db := configs.DB
-	userExist := models.Account{}
-	result := db.First(&userExist, "id = ?", userId)
-
-	if result.Error != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
-	}
-
-	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Account does not exist. Please register!", "success": false})
-	}
-
-	if userExist.IsBlocked {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": userExist.IsBlockedReason, "success": false})
-	}
-	if userExist.IsBlacklisted {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": userExist.IsBlacklistedReason, "success": false})
-	}
-	if !userExist.IsMobileVerified {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "You are not verified! Please verify your account!", "data": fiber.Map{"id": userExist.ID, "isMobileVerified": userExist.IsMobileVerified}, "success": false})
-	}
-
-	// Generate token based on email and send email
-	token, err := helpers.GenerateToken(helpers.TokenClaims{
-		UserId: userExist.ID,
-		Email:  payload.Email,
-		Exp:    time.Now().Add(5 * time.Minute).Unix(), // 5 minutes from now
-	})
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Something bad happened on server", "success": false})
-	}
-
-	// Send email
-	err = helpers.SendEmail(token, userExist.Email)
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to send email", "success": false})
-	}
-
-	userExist.Email = payload.Email
-	userExist.IsEmailVerified = false
-
-	db.Save(&userExist)
-
-	// Return response
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Email updated and verification email sent", "success": true})
-
-}
-func VerifyEmail(c *fiber.Ctx) error {
-
-	var payload *VerifyEmailPayload
-
-	if err := c.BodyParser(&payload); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error(), "success": false})
-	}
-
-	if errors := helpers.ValidateStruct(payload); errors != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"errors": errors, "success": false})
-	}
-
-	parseToken, err := helpers.ParseToken(payload.Token)
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": err.Error(), "success": false})
-	}
-
-	userId := parseToken.UserId
-
-	db := configs.DB
-	userExist := models.Account{}
-	result := db.First(&userExist, "id = ?", userId)
-
-	if result.Error != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Something bad happened", "success": false})
-	}
-
-	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"message": "Account does not exist. Please register!", "success": false})
-	}
-
-	if userExist.IsBlocked {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": userExist.IsBlockedReason, "success": false})
-	}
-	if userExist.IsBlacklisted {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": userExist.IsBlacklistedReason, "success": false})
-	}
-	if !userExist.IsMobileVerified {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "You are not verified! Please verify your account!", "data": fiber.Map{"id": userExist.ID, "isMobileVerified": userExist.IsMobileVerified}, "success": false})
-	}
-
-	if userExist.Email != parseToken.Email {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid token. Failed to verify email!", "success": false})
-	}
-
-	userExist.IsEmailVerified = true
-
-	db.Save(&userExist)
-
-	// Return response
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Email verified successfully", "success": true})
 
 }

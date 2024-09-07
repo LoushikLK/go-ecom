@@ -8,8 +8,8 @@ import (
 )
 
 func InitAddressRoutes(router fiber.Router) {
-	router.Post("/", middlewares.IsAuthenticated, controllers.GetProfile)
-	router.Put("/:addressId", middlewares.IsAuthenticated, controllers.UpdateProfile)
-	router.Delete("/", middlewares.IsAuthenticated, controllers.UpdateEmail)
-	router.Get("/", controllers.VerifyEmail)
+	router.Post("/", middlewares.IsAuthenticated, controllers.AddAddress)
+	router.Put("/:addressId", middlewares.IsAuthenticated, controllers.UpdateAddress)
+	router.Delete("/:addressId", middlewares.IsAuthenticated, controllers.DeleteAddress)
+	router.Get("/", middlewares.IsAuthenticated, controllers.GetAllAddresses)
 }
